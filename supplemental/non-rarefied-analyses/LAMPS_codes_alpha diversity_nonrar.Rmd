@@ -1,0 +1,220 @@
+---
+title: "analysis_part2 - nonrarefied - LAMPS"
+author: "Fernando I. Rocha - ignerocha.f@gmail.com"
+date: "8/21/2020"
+output: html_document
+---
+
+```{r}
+sessionInfo()
+```
+R version 3.6.1 (2019-07-05)
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+Running under: macOS Catalina 10.15.2
+
+Matrix products: default
+BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+ [1] parallel  stats4    grid      stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+ [1] plyr_1.8.6                  DESeq2_1.26.0               SummarizedExperiment_1.16.1
+ [4] DelayedArray_0.12.1         BiocParallel_1.20.1         matrixStats_0.55.0         
+ [7] Biobase_2.46.0              GenomicRanges_1.38.0        GenomeInfoDb_1.22.0        
+[10] IRanges_2.20.1              S4Vectors_0.24.1            BiocGenerics_0.32.0        
+[13] microbiome_1.8.0            randomForest_4.6-14         dichromat_2.0-0            
+[16] RColorBrewer_1.1-2          forcats_0.5.0               stringr_1.4.0              
+[19] purrr_0.3.4                 readr_1.3.1                 tidyr_1.0.2                
+[22] tibble_3.0.1                tidyverse_1.3.0             dplyr_0.8.5                
+[25] emmeans_1.4.6               bbmle_1.0.23.1              GGally_1.5.0               
+[28] effects_4.1-4               glmmTMB_1.0.1               sjPlot_2.8.3               
+[31] RVAideMemoire_0.9-75        flexplot_0.7.5              r2glmm_0.1.2               
+[34] lmerTest_3.1-2              lme4_1.1-23                 Matrix_1.2-18              
+[37] MASS_7.3-51.5               car_3.0-7                   carData_3.0-3              
+[40] phylosmith_1.0.4            pairwiseAdonis_0.0.1        cluster_2.1.0              
+[43] devtools_2.2.1              usethis_1.5.1               ampvis2_2.5.5              
+[46] phyloseq_1.30.0             ggpubr_0.2.4.999            magrittr_1.5               
+[49] gplots_3.0.1.1              knitr_1.28                  agricolae_1.3-1            
+[52] reshape2_1.4.4              scales_1.1.0                vegan_2.5-6                
+[55] lattice_0.20-38             permute_0.9-5               ggplot2_3.3.0    
+
+
+```{r}
+phymis_nr <- readRDS("mis_noBulk_noRarefing.rds")
+phymis_nr1 <- prune_samples(sample_sums(phymis_nr) >= 9000, phymis_nr)
+#
+library(microbiome)
+summarize_phyloseq(phymis_nr1)
+```
+
+```{r}
+library(data.table)
+ sdt = data.table(as(sample_data(phymis_nr1), "data.frame"),
+                 TotalReads = sample_sums(phymis_nr1), keep.rownames = TRUE)
+setnames(sdt, "rn", "SampleID")
+pSeqDepth = ggplot(sdt, aes(TotalReads)) + geom_histogram() + ggtitle("Sequencing Depth")
+pSeqDepth
+#
+```
+
+# Alpha-diversity measures
+```{r}
+tab.alpha <- estimate_richness(phymis_nr1)
+# I exported the table to use as metadata for further analysis
+alphadiv.biomass.data.nr <- read.csv("alphadiv_nonrar_LAMPS.paper.csv", header = TRUE)
+```
+
+```{r}
+library(tidyr)
+sa.data <- alphadiv.biomass.data.nr %>% nest(-Stand_age)
+#
+sa.2017 = sa.data$data[sa.data$Stand_age == "2017_2y"]
+sa.2017 = as.data.frame(sa.2017)
+sa.2017 = sa.2017[order(sa.2017$Nitrogen, decreasing = TRUE),]
+#N400 = sa.2017[1:45,] 
+#N200 = sa.2017[46:93,] 
+#N0   = sa.2017[94:139,] 
+#
+sa.2016 = sa.data$data[sa.data$Stand_age == "2016_3y"]
+sa.2016 = as.data.frame(sa.2016)
+sa.2016 = sa.2016[order(sa.2016$Nitrogen, decreasing = TRUE),]
+#N400 = sa.2016[1:45,] 
+#N200 = sa.2016[46:92,] 
+#N0   = sa.2016[93:139,] 
+#
+sa.2015 = sa.data$data[sa.data$Stand_age == "2015_4y"]
+sa.2015 = as.data.frame(sa.2015)
+sa.2015 = sa.2015[order(sa.2015$Nitrogen, decreasing = TRUE),]
+#N400 = sa.2015[1:46,] 
+#N200 = sa.2015[47:93,] 
+#N0   = sa.2015[94:138,] 
+```
+
+# Kendall's correlation: Sampling day x alpha-div
+```{r}
+## fertilized
+#chao1 
+cor.test(~Days + Chao1, sa.2017[1:93,], method = "kendall" ) 
+cor.test(~Days + Chao1, sa.2016[1:92,], method = "kendall" ) 
+cor.test(~Days + Chao1, sa.2015[1:92,], method = "kendall" ) 
+
+#shannon 
+cor.test(~Days + Shannon, sa.2017[1:93,], method = "kendall" ) 
+cor.test(~Days + Shannon, sa.2016[1:92,], method = "kendall" ) 
+cor.test(~Days + Shannon, sa.2015[1:93,], method = "kendall" ) 
+
+## control 
+#chao1 
+cor.test(~Days + Chao1, sa.2017[94:139,], method = "kendall" ) 
+cor.test(~Days + Chao1, sa.2016[93:139,], method = "kendall" ) 
+cor.test(~Days + Chao1, sa.2015[94:138,], method = "kendall" ) 
+
+#shannon 
+cor.test(~Days + Shannon, sa.2017[94:139,], method = "kendall" ) 
+cor.test(~Days + Shannon, sa.2016[93:139,], method = "kendall" ) 
+cor.test(~Days + Shannon, sa.2015[94:138,], method = "kendall" ) 
+```
+
+# boxplots for alpha-diversity by Sampling days within Stand age
+```{r}
+comp.day <- list(c("-14", "-10"), c("-14", "5"), c("-14", "21"),c("-14", "55"),
+                 c("-10", "5"), c("-10", "21"),c("-10", "5"),
+                 c("5", "21"),c("5", "55"),
+                 c("21", "55"))
+ggplot(alphadiv.biomass.data.nr, aes(x=as.factor(Days), 
+                          y=Chao1, 
+                          color=Nitrogen,
+                          shape=Nitrogen)) +
+  geom_boxplot(aes(x=as.factor(Days), y=Chao1, color=Nitrogen), alpha=0.9) +
+  scale_size_area()+
+  theme(axis.text.x = element_text(angle = 60, vjust = 1, hjust = 1), 
+        panel.grid.minor = element_blank(), axis.title.x = element_blank()) +
+  scale_color_manual(values = c("darkgrey","#6fb98f", "#2b580c","#6fb98f", "#2b580c")) + 
+  scale_fill_manual(values = c("darkgrey","#6fb98f", "#2b580c","#6fb98f", "#2b580c")) +
+  stat_compare_means(comparisons = comp.day ,hide.ns = TRUE,   label="p.signif") + 
+  theme_minimal() + facet_wrap(~Stand_age)
+#
+ggplot(alphadiv.biomass.data.nr, aes(x=as.factor(Days), 
+                          y=Shannon, 
+                          color=Nitrogen,
+                          shape=Nitrogen)) +
+  geom_boxplot(aes(x=as.factor(Days), y=Shannon, color=Nitrogen), alpha=0.9) +
+  scale_size_area()+
+  theme(axis.text.x = element_text(angle = 60, vjust = 1, hjust = 1), 
+        panel.grid.minor = element_blank(), axis.title.x = element_blank()) +
+  scale_color_manual(values = c("darkgrey","#6fb98f", "#2b580c","#6fb98f", "#2b580c")) + 
+  scale_fill_manual(values = c("darkgrey","#6fb98f", "#2b580c","#6fb98f", "#2b580c")) +
+  stat_compare_means(comparisons =comp.day ,hide.ns = TRUE,   label="p.signif") + 
+  theme_minimal() + facet_wrap(~Stand_age)
+```
+
+# GLMM: alpha-diversity models
+```{r}
+mod.chao <- glmer(Chao1 ~ Stand_age + Nitrogen + Days + Biomass + Stand_age*Nitrogen  + Stand_age*Days + Stand_age*Biomass + Nitrogen*Days + Nitrogen*Biomass + Days*Biomass + Stand_age*Nitrogen*Days + Stand_age*Nitrogen*Days*Biomass + (1|Block/Stand_age) + (1|Block/Stand_age/Nitrogen) + (1|Block/Stand_age/Nitrogen/Days), data = alphadiv.biomass.data.nr, family = Gamma(link = "log"), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5), calc.derivs = FALSE))
+#
+mod.shan <- glmer(Shannon ~ Stand_age + Nitrogen + Days + Biomass + Stand_age*Nitrogen  + Stand_age*Days + Stand_age*Biomass + Nitrogen*Days + Nitrogen*Biomass + Days*Biomass + Stand_age*Nitrogen*Days + Stand_age*Nitrogen*Days*Biomass + (1|Block/Stand_age) + (1|Block/Stand_age/Nitrogen) + (1|Block/Stand_age/Nitrogen/Days), data = alphadiv.biomass.data.nr, family = Gamma(link = "log"),control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+#
+qqnorm(residuals(mod.chao)); qqline(residuals(mod.chao)) 
+qqnorm(residuals(mod.shan)); qqline(residuals(mod.shan)) 
+#
+print(summary(mod.chao), correlation=F)
+print(summary(mod.shan), correlation=F)
+```
+
+```{r}
+Anova(mod.chao, type = 2, test.statistic= "Chisq")
+Anova(mod.shan, type = 2, test.statistic= "Chisq")
+```
+
+# Pairwise comparison between N rates
+```{r}
+glht_chao <- glht(mod.chao, linfct=mcp(Nitrogen="Tukey"))
+glht_shan <- glht(mod.shan, linfct=mcp(Nitrogen="Tukey"))
+#
+summary(glht_chao, test=adjusted("none"))
+summary(glht_shan, test=adjusted("none"))
+```
+
+# Plots using estimated marginal effects: Alpha-div x Biomass
+```{r}
+plot_model(mod.chao, type = "eff", terms = c("Biomass", "Nitrogen"), colors = c("darkgrey","#6fb98f", "#2b580c")) + geom_smooth(method="glm",size=1,alpha = 0.3) + labs(x="Above-ground biomass (Mg ha-1)", y = "ASV richness (Chao 1") + theme_minimal() 
+#
+plot_model(mod.shan, type = "eff", terms = c("Biomass", "Nitrogen"), colors = c("darkgrey","#6fb98f", "#2b580c")) + geom_smooth(method="glm",size=1,alpha = 0.3) + labs(x="Above-ground biomass (Mg ha-1)", y = "Shannon index") + theme_minimal() 
+```
+
+# Plots using estimated marginal effects: Alpha-div x Biomass x Stand age
+```{r}
+plot_model(mod.chao, type = "eff", terms = c("Biomass", "Nitrogen", "Stand_age"), colors = c("darkgrey","#6fb98f", "#2b580c")) + geom_smooth(method="glm",size=1,alpha = 0.3) +  
+     labs(x="Above-ground biomass (Mg ha-1)", y = "ASV richness (Chao 1)") +
+     theme_minimal() 
+#
+plot_model(mod.shan, type = "eff", terms = c("Biomass", "Nitrogen", "Stand_age"), colors = c("darkgrey","#6fb98f", "#2b580c")) + geom_smooth(method="glm",size=1,alpha = 0.3) +  
+     labs(x="Above-ground biomass (Mg ha-1)", y = "Shannon index") +
+     theme_minimal() 
+```
+
+# Violin plot: alpha-div x Nitrogen
+```{r}
+ggplot(alphadiv.biomass.data.nr, aes(x=Nitrogen, y=Chao1,color=Nitrogen)) +
+  geom_point(aes(shape = Nitrogen),alpha = 0.5,size=2) +
+  geom_violin(aes(x=Nitrogen, y=Chao1, color=Nitrogen), alpha=0.5) +
+  scale_size_area() + theme(axis.text.x = element_text(angle = 60, vjust = 1, hjust = 1), 
+        panel.grid.minor = element_blank(), axis.title.x = element_blank()) +
+  scale_color_manual(values = c("darkgrey","#6fb98f", "#2b580c","#6fb98f", "#2b580c")) + 
+  scale_fill_manual(values = c("darkgrey","#6fb98f", "#2b580c","#6fb98f", "#2b580c")) +
+  theme_minimal() 
+#
+ggplot(alphadiv.biomass.data.nr, aes(x=Nitrogen, y=Shannon,color=Nitrogen)) +
+  geom_point(aes(shape = Nitrogen),alpha = 0.5,size=2) +
+  geom_violin(aes(x=Nitrogen, y=Shannon, color=Nitrogen), alpha=0.5) +
+  scale_size_area() + theme(axis.text.x = element_text(angle = 60, vjust = 1, hjust = 1), 
+        panel.grid.minor = element_blank(), axis.title.x = element_blank()) +
+  scale_color_manual(values = c("darkgrey","#6fb98f", "#2b580c","#6fb98f", "#2b580c")) + 
+  scale_fill_manual(values = c("darkgrey","#6fb98f", "#2b580c","#6fb98f", "#2b580c")) +
+  theme_minimal() + ylim(c(6.5, 8))
+```
